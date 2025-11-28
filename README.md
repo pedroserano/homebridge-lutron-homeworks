@@ -1,15 +1,14 @@
 # homebridge-lutron-homeworks
 
-Lutron Homeworks plug-in for [Homebridge](https://github.com/nfarina/homebridge) using RS232 (and now also ethernet for those with a Homeworks system with an ethernet port on it).
+Lutron Homeworks plug-in for [Homebridge](https://github.com/nfarina/homebridge) using RS232 (and now also ethernet for those with a Homeworks system with an ethernet port on it). This modification allows you to use either RS-232 or TCP/Telnet connections to your Lutron Homeworks system!
 
 Got an old school Lutron Homeworks system? Don't want to pay $10,000+ to retrofit all of your dimmers for HomeKit? Then you're at the right place.
 
 # Requirements
 
 1. Check environment compatiblity for [Node SerialPort](https://serialport.io/docs/guide-platform-support).
-2. Connect host system to the Lutron Homeworks board using RS232.
-3. Check if you can successfully log into the system prior to installing the plugin (optional but recommended)
-   * See [here](https://github.com/cptechie/homebridge-lutron-homeworks/issues/6#issuecomment-827973256) for instructions on how to do this using **minicom**
+2. Connect host system to the Lutron Homeworks board using RS232 or ethernet.
+3. Check if you can successfully log into the system prior to installing the plugin (optional but recommended, see below)
 
 # Installation
 
@@ -22,16 +21,38 @@ This plugin was tested in docker using oznu's [docker-homebridge](https://github
 
 # Configuration
 
-Minimum configuration sample (edit `~/.homebridge/config.json`):
+ETHERNET Minimum configuration sample (edit `~/.homebridge/config.json`):
 
 ```
 "platforms": [
-        {
-            "name": "Lutron Homeworks",
-            "serialPath": "/dev/ttyUSB0",
-            "platform": "LutronHomeworks"
-        }
-    ],
+    {
+      "name": "Lutron Homeworks",
+      "connectionType": "tcp",
+      "host": "192.168.1.100",
+      "port": 23,
+      "loginRequired": true,
+      "username": "lutron",
+      "password": "jetski",
+      "defaultFadeTime": 1,
+      "platform": "LutronHomeworks"
+    }
+  ]
+```
+
+SERIAL Minimum configuration sample (edit `~/.homebridge/config.json`):
+
+```
+"platforms": [
+    {
+      "name": "Lutron Homeworks",
+      "connectionType": "serial",
+      "serialPath": "/dev/ttyUSB0",
+      "baudRate": 115200,
+      "loginRequired": true,
+      "password": "jetski",
+      "platform": "LutronHomeworks"
+    }
+  ],
 ```
 
 Required fields if your Lutron Homeworks system requires authentication:
@@ -93,8 +114,32 @@ Addresses are literally the address for a dimmer or switch. Don't worry if you d
    
 # What kind of wizardry is this?
 
-This isn't wizardry. Just taking advantage of Lutron HomeWorks RS232 protocol. You can read more about the protocol [here](https://www.lutron.com/TechnicalDocumentLibrary/HWI%20RS232%20Protocol.pdf).
+This isn't wizardry. Just taking advantage of Lutron HomeWorks protocol. You can read more about the protocol [here](https://www.lutron.com/TechnicalDocumentLibrary/HWI%20RS232%20Protocol.pdf).
 
-# Your code sucks
+# Testing
 
-Well, yeah. This is my first homebridge plugin and first experience with TypeScript. Be nice.
+1. First test your telnet connection manually:
+   
+   ```
+   telnet 192.168.4.87 23
+   ```
+1. You should see the `LOGIN:` prompt. Type:
+   
+   ```
+   lutron, jetski
+   ```
+1. You should see `login successful`. Now try some commands:
+   
+   ```
+   DLMON
+   ```
+1. Once you confirm telnet works, restart Homebridge and check the logs for successful connection messages.
+
+# Troubleshooting
+
+- **Connection refused**: Check your IP address and port number
+- **Timeout**: Verify your Lutron device is accessible on the network
+- **Authentication failed**: Double-check your password
+- **No response from device**: Some Lutron systems may need a slight delay after connecting before sending commands
+
+-----
