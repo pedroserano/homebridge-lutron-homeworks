@@ -11,6 +11,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
 
   public readonly accessories: PlatformAccessory[] = [];
 
+  private connection: ConnectionHandler;
   private port;
   private parser;
   private deviceHandlers = {};
@@ -83,19 +84,17 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
 
 this.connection = new ConnectionHandler(connectionConfig, this.log);
 
-try {
-  await this.connection.connect();
-  this.log.info('Connected to Lutron Homeworks');
-  
-  // If login is not required, we're ready immediately
-  if (!this.config.loginRequired) {
-    this.log.info('No login required, ready to communicate');
-    this.startDiscovery();
-  }
-} catch (err) {
-  this.log.error('Failed to connect:', err);
-  throw err;
-}
+this.connection.connect().then(() => {
+        this.log.info('Connected to Lutron Homeworks');
+
+        if (!this.config.loginRequired) {
+          this.log.info('No login required, ready to communicate');
+          this.startDiscovery();
+        }
+      }).catch((err) => {
+        this.log.error('Failed to connect:', err);
+        throw err;
+      });
 
 // Set up event handlers
 this.connection.on('data', (line: string) => {
@@ -282,4 +281,20 @@ this.connection.on('close', () => {
 
     this.api.updatePlatformAccessories([accessory]);
   }
+
+  startDiscovery(): void {
+  this.log.info('startDiscovery called - implement me!');
+  // TODO: Implement device discovery over the network here
+  // You can call discoverDevices() or add custom logic if needed
+  // For now, call the existing discoverDevices method to prevent crash
+  this.discoverDevices();
+}
+
+handleResponse(line: string): void {
+  this.log.info('handleResponse called with:', line);
+  // TODO: Implement how to handle responses from the Lutron processor here
+  // For now, you can re-use processLine
+  this.processLine(line);
+}
+  
 }
