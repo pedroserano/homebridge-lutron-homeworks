@@ -125,6 +125,13 @@ export class ConnectionHandler extends EventEmitter {
     lines.forEach(line => {
       const trimmed = line.trim();
       if (trimmed) {
+        // --- ADDED CHECK HERE ---
+        // Ignore the Lutron prompts from the logs
+        if (trimmed === 'LNET>' || trimmed === 'Lutron HomeWorks >') {
+           return; 
+        }
+        // --- END ADDED CHECK ---
+
         if (trimmed.toLowerCase().includes('login successful')) {
           this.log.info('Login successful');
           this.loginPending = false;
