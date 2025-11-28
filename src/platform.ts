@@ -71,15 +71,15 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
       }
     }
 
-    const connectionConfig: ConnectionConfig = {
-  connectionType: this.config.connectionType || 'serial',
-  serialPath: this.config.serialPath,
-  baudRate: this.config.baudRate || 115200,
-  host: this.config.host,
-  port: this.config.port || 23,
-  loginRequired: this.config.loginRequired,
-  username: this.config.username || 'lutron',
-  password: this.config.password || 'integration',
+const connectionConfig: ConnectionConfig = {
+  connectionType: this.config.connectionType !== undefined ? String(this.config.connectionType) : 'serial',
+  serialPath: this.config.serialPath !== undefined ? String(this.config.serialPath) : undefined,
+  baudRate: this.config.baudRate !== undefined ? Number(this.config.baudRate) : 115200,
+  host: this.config.host !== undefined ? String(this.config.host) : undefined,
+  port: this.config.port !== undefined ? Number(this.config.port) : 23,
+  loginRequired: this.config.loginRequired !== undefined ? Boolean(this.config.loginRequired) : false,
+  username: this.config.username !== undefined ? String(this.config.username) : 'lutron',
+  password: this.config.password !== undefined ? String(this.config.password) : 'integration',
 };
 
 this.connection = new ConnectionHandler(connectionConfig, this.log);
