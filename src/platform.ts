@@ -72,7 +72,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
     }
 
 const connectionConfig: ConnectionConfig = {
-  connectionType: this.config.connectionType !== undefined ? String(this.config.connectionType) : 'serial',
+  connectionType: this.config.connectionType === 'tcp' ? 'tcp' : 'serial',
   serialPath: this.config.serialPath !== undefined ? String(this.config.serialPath) : undefined,
   baudRate: this.config.baudRate !== undefined ? Number(this.config.baudRate) : 115200,
   host: this.config.host !== undefined ? String(this.config.host) : undefined,
