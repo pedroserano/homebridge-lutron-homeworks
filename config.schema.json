@@ -13,17 +13,64 @@
             "default": "Lutron Homeworks",
             "required": true
          },
+         "connectionType": {
+        "title": "Connection Type",
+        "type": "string",
+        "default": "serial",
+        "oneOf": [
+          { "title": "Serial (RS-232)", "enum": ["serial"] },
+          { "title": "TCP/Telnet (Ethernet)", "enum": ["tcp"] }
+        ],
+        "required": true
+      },
          "serialPath": {
-            "default": "/dev/ttyUSB0",
-            "title": "Serial Dev Path",
-            "type": "string",
-            "format": "json-pointer",
-            "required": true
-         },
+        "title": "Serial Port Path",
+        "type": "string",
+        "placeholder": "/dev/ttyUSB0",
+        "condition": {
+          "functionBody": "return model.connectionType === 'serial';"
+        }
+      },
+         "host": {
+        "title": "Lutron IP Address",
+        "type": "string",
+        "format": "hostname",
+        "placeholder": "192.168.1.100",
+        "condition": {
+          "functionBody": "return model.connectionType === 'tcp';"
+        }
+      },
+      "port": {
+        "title": "Lutron Port",
+        "type": "integer",
+        "default": 23,
+        "placeholder": "23",
+        "condition": {
+          "functionBody": "return model.connectionType === 'tcp';"
+        }
+      },
+      "loginRequired": {
+        "title": "Login Required",
+        "type": "boolean",
+        "default": false
+      },
+      "username": {
+        "title": "Username",
+        "type": "string",
+        "default": "lutron"
+      },
+      "password": {
+        "title": "Password",
+        "type": "string",
+        "default": "jetski"
+      },
          "baudRate": {
             "default": 115200,
             "title": "Baud Rate",
             "type": "integer",
+            "condition": {
+          "functionBody": "return model.connectionType === 'serial';"
+        },
             "oneOf": [
               { "title": "300", "enum": [300] },
               { "title": "600", "enum": [600] },
