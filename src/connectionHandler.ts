@@ -47,6 +47,9 @@ export class ConnectionHandler extends EventEmitter {
       port.on('open', () => {
         this.log.info('Serial port opened successfully');
         this.connection = port;
+        // Check for immediate login requirement after connection
+        if (this.config.loginRequired && !this.loginSent) {
+          this.sendImmediateLogin();
         resolve();
       });
 
@@ -75,6 +78,10 @@ export class ConnectionHandler extends EventEmitter {
       socket.connect(this.config.port!, this.config.host!, () => {
         this.log.info('TCP connection established');
         this.connection = socket;
+        // Check for immediate login requirement after connection
+        if (this.config.loginRequired && !this.loginSent) {
+          this.sendImmediateLogin();
+        }
         resolve();
       });
 
@@ -99,6 +106,18 @@ export class ConnectionHandler extends EventEmitter {
     });
   }
 
+   // Helper function to send the exact required login string
+  private sendImmediateLogin(): void {
+    const username = this.config.username || 'lutron';
+    const password = this.config.password || 'integration';
+    // Send the exact required format with a single carriage return
+    const loginString = `${username}, ${password}\r`; 
+    this.writeRaw(loginString); // Use the new raw write function
+    this.loginSent = true;
+    this.loginPending = true; // Still pending until 'Login successful' is seen
+    this.log.debug('Sent immediate login string:', loginString.trim());
+  }
+  
   private handleData(data: string): void {
     this.buffer += data;
     
@@ -112,15 +131,10 @@ export class ConnectionHandler extends EventEmitter {
     lines.forEach(line => {
       const trimmed = line.trim();
       if (trimmed) {
-        // Check if this is a login prompt
-        if (trimmed.includes('LOGIN:') && this.config.loginRequired) {
-          this.log.info('Received login prompt, authenticating...');
-          this.loginPending = true;
-          // Send username and password in response to prompt
-          const username = this.config.username || 'lutron';
-          const password = this.config.password || 'integration';
-          this.write(`${username}, ${password}`);
-        } else if (trimmed.toLowerCase().includes('login successful')) {
+        // We no longer wait for a "LOGIN:" prompt if we are using immediate login
+        // The original code waited for this prompt, which caused the hang/error
+        
+        if (trimmed.toLowerCase().includes('login successful')) {
           this.log.info('Login successful');
           this.loginPending = false;
           this.emit('ready');
@@ -133,6 +147,19 @@ export class ConnectionHandler extends EventEmitter {
         }
       }
     });
+  }
+
+   // A new helper method that writes exactly what is passed to it, no extra ending chars.
+  private writeRaw(data: string): void {
+     if (!this.connection) {
+      this.log.error('Cannot write - not connected');
+      return;
+    }
+    if (this.config.connectionType === 'serial') {
+      (this.connection as SerialPort).write(data);
+    } else {
+      (this.connection as Socket).write(data);
+    }
   }
 
   write(data: string): void {
