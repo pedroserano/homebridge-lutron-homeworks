@@ -20,6 +20,7 @@ export class ConnectionHandler extends EventEmitter {
   private readonly config: ConnectionConfig;
   private buffer = '';
   private loginPending = false;
+  private loginSent = false; 
 
   constructor(config: ConnectionConfig, log: Logger) {
     super();
@@ -47,9 +48,9 @@ export class ConnectionHandler extends EventEmitter {
       port.on('open', () => {
         this.log.info('Serial port opened successfully');
         this.connection = port;
-        // Check for immediate login requirement after connection
         if (this.config.loginRequired && !this.loginSent) {
           this.sendImmediateLogin();
+        }
         resolve();
       });
 
@@ -78,7 +79,6 @@ export class ConnectionHandler extends EventEmitter {
       socket.connect(this.config.port!, this.config.host!, () => {
         this.log.info('TCP connection established');
         this.connection = socket;
-        // Check for immediate login requirement after connection
         if (this.config.loginRequired && !this.loginSent) {
           this.sendImmediateLogin();
         }
@@ -106,34 +106,25 @@ export class ConnectionHandler extends EventEmitter {
     });
   }
 
-   // Helper function to send the exact required login string
   private sendImmediateLogin(): void {
     const username = this.config.username || 'lutron';
     const password = this.config.password || 'integration';
-    // Send the exact required format with a single carriage return
     const loginString = `${username}, ${password}\r`; 
-    this.writeRaw(loginString); // Use the new raw write function
+    this.writeRaw(loginString);
     this.loginSent = true;
-    this.loginPending = true; // Still pending until 'Login successful' is seen
+    this.loginPending = true;
     this.log.debug('Sent immediate login string:', loginString.trim());
   }
-  
+
   private handleData(data: string): void {
     this.buffer += data;
     
-    // Split on newlines and process complete lines
     const lines = this.buffer.split('\n');
-    
-    // Keep the last incomplete line in the buffer
     this.buffer = lines.pop() || '';
     
-    // Emit each complete line
     lines.forEach(line => {
       const trimmed = line.trim();
       if (trimmed) {
-        // We no longer wait for a "LOGIN:" prompt if we are using immediate login
-        // The original code waited for this prompt, which caused the hang/error
-        
         if (trimmed.toLowerCase().includes('login successful')) {
           this.log.info('Login successful');
           this.loginPending = false;
@@ -142,14 +133,12 @@ export class ConnectionHandler extends EventEmitter {
           this.log.error('Login failed - check username and password');
           this.emit('error', new Error('Login incorrect'));
         } else if (!this.loginPending) {
-          // Only emit data after login is complete
           this.emit('data', trimmed);
         }
       }
     });
   }
-
-   // A new helper method that writes exactly what is passed to it, no extra ending chars.
+  
   private writeRaw(data: string): void {
      if (!this.connection) {
       this.log.error('Cannot write - not connected');
@@ -162,14 +151,14 @@ export class ConnectionHandler extends EventEmitter {
     }
   }
 
+
   write(data: string): void {
     if (!this.connection) {
       this.log.error('Cannot write - not connected');
       return;
     }
 
-    // Don't add extra line ending if this is a login response
-    const ending = this.loginPending ? '' : '\r\n';
+    const ending = '\r\n';
     
     if (this.config.connectionType === 'serial') {
       (this.connection as SerialPort).write(data + ending);
