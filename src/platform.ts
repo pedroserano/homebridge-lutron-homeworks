@@ -89,12 +89,6 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
       throw err;
     });
 
-    // Only send discovery commands once the connection emits "ready"
-    this.connection.on('ready', () => {
-      this.log.info('Authentication complete, starting device discovery');
-      this.startDiscovery();
-    });
-
     // Handle incoming data lines from processor
     this.connection.on('data', (line: string) => {
       this.handleResponse(line);
