@@ -84,6 +84,13 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
     // Only connect; don't send any write/discovery commands here!
     this.connection.connect().then(() => {
       this.log.info('Connected to Lutron Homeworks');
+      
+      // Add a small timeout (e.g., 100ms) before sending the first command
+      setTimeout(() => {
+        this.log.info('Delay complete, starting device discovery immediately.');
+        this.startDiscovery();
+      }, 100); // 100 milliseconds is usually sufficient
+
     }).catch((err) => {
       this.log.error('Failed to connect:', err);
       throw err;
