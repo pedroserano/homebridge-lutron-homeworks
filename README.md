@@ -1,6 +1,6 @@
 # homebridge-lutron-homeworks
 
-Lutron Homeworks plug-in for [Homebridge](https://github.com/nfarina/homebridge) using RS232.
+Lutron Homeworks plug-in for [Homebridge](https://github.com/nfarina/homebridge) using RS232 (and now also ethernet for those with a Homeworks system with an ethernet port on it).
 
 Got an old school Lutron Homeworks system? Don't want to pay $10,000+ to retrofit all of your dimmers for HomeKit? Then you're at the right place.
 
