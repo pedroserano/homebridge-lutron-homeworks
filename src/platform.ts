@@ -3,7 +3,6 @@ import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, 
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 import { LutronHomeworksPlatformAccessory } from './platformAccessory';
 import { ConnectionHandler, ConnectionConfig } from './connectionHandler';
-import { ReadlineParser } from '@serialport/parser-readline';
 
 export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service = this.api.hap.Service;
@@ -12,8 +11,6 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
   public readonly accessories: PlatformAccessory[] = [];
 
   private connection: ConnectionHandler;
-  private port;
-  private parser;
   private deviceHandlers = {};
   private devices = {};
   private ignoreDevices;
@@ -42,10 +39,10 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
                 this.log.debug('Found fadeTime ' + x['fadeTime'] + ' in customDevice ' + x.address);
               }
             } else {
-              this.log.warn('customDevice at index ' + i + 'does not contain an address. Values: ' + this.config.devices[i]);
+              this.log.warn('customDevice at index ' + i + ' does not contain an address. Values: ' + this.config.devices[i]);
             }
           } else {
-            this.log.warn('customDevice at index ' + i + 'is not an object. Values: ' + this.config.devices[i]);
+            this.log.warn('customDevice at index ' + i + ' is not an object. Values: ' + this.config.devices[i]);
           }
         }
       } else {
@@ -67,59 +64,51 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
       if (typeof this.config.defaultFadeTime === 'number') {
         this.defaultFadeTime = this.config.defaultFadeTime;
       } else {
-        log.warn('Error processing defaultFadeTime from config. Make sure ignoreDevices is of type number.');
+        log.warn('Error processing defaultFadeTime from config. Make sure defaultFadeTime is of type number.');
       }
     }
 
-const connectionConfig: ConnectionConfig = {
-  connectionType: this.config.connectionType === 'tcp' ? 'tcp' : 'serial',
-  serialPath: this.config.serialPath !== undefined ? String(this.config.serialPath) : undefined,
-  baudRate: this.config.baudRate !== undefined ? Number(this.config.baudRate) : 115200,
-  host: this.config.host !== undefined ? String(this.config.host) : undefined,
-  port: this.config.port !== undefined ? Number(this.config.port) : 23,
-  loginRequired: this.config.loginRequired !== undefined ? Boolean(this.config.loginRequired) : false,
-  username: this.config.username !== undefined ? String(this.config.username) : 'lutron',
-  password: this.config.password !== undefined ? String(this.config.password) : 'integration',
-};
+    const connectionConfig: ConnectionConfig = {
+      connectionType: this.config.connectionType === 'tcp' ? 'tcp' : 'serial',
+      serialPath: this.config.serialPath !== undefined ? String(this.config.serialPath) : undefined,
+      baudRate: this.config.baudRate !== undefined ? Number(this.config.baudRate) : 115200,
+      host: this.config.host !== undefined ? String(this.config.host) : undefined,
+      port: this.config.port !== undefined ? Number(this.config.port) : 23,
+      loginRequired: this.config.loginRequired !== undefined ? Boolean(this.config.loginRequired) : false,
+      username: this.config.username !== undefined ? String(this.config.username) : 'lutron',
+      password: this.config.password !== undefined ? String(this.config.password) : 'integration',
+    };
 
-this.connection = new ConnectionHandler(connectionConfig, this.log);
+    this.connection = new ConnectionHandler(connectionConfig, this.log);
 
-this.connection.connect().then(() => {
-        this.log.info('Connected to Lutron Homeworks');
+    // Only connect; don't send any write/discovery commands here!
+    this.connection.connect().then(() => {
+      this.log.info('Connected to Lutron Homeworks');
+    }).catch((err) => {
+      this.log.error('Failed to connect:', err);
+      throw err;
+    });
 
-        if (!this.config.loginRequired) {
-          this.log.info('No login required, ready to communicate');
-          this.startDiscovery();
-        }
-      }).catch((err) => {
-        this.log.error('Failed to connect:', err);
-        throw err;
-      });
+    // Only send discovery commands once the connection emits "ready"
+    this.connection.on('ready', () => {
+      this.log.info('Authentication complete, starting device discovery');
+      this.startDiscovery();
+    });
 
-// Set up event handlers
-this.connection.on('data', (line: string) => {
-  // Handle incoming data
-  this.handleResponse(line);
-});
+    // Handle incoming data lines from processor
+    this.connection.on('data', (line: string) => {
+      this.handleResponse(line);
+    });
 
-this.connection.on('ready', () => {
-  // Login completed, start device discovery
-  this.log.info('Authentication complete, starting device discovery');
-  this.startDiscovery();
-});
+    this.connection.on('close', () => {
+      this.log.warn('Connection closed, attempting to reconnect...');
+      // Optionally: attempt reconnect logic here
+    });
 
-this.connection.on('close', () => {
-  this.log.warn('Connection closed, attempting to reconnect...');
-  // Add reconnection logic if desired
-});
-
-    if (this.config.loginRequired) {
-      this.connection.write('LOGIN, ' + this.config.password + '\r');
-    }
-
+    // Remove any .write() or .discoverDevices() calls from didFinishLaunching
     this.api.on('didFinishLaunching', () => {
       log.debug('Executed didFinishLaunching callback');
-      this.discoverDevices();
+      // NO device discovery or writes here!
     });
   }
 
@@ -134,7 +123,6 @@ this.connection.on('close', () => {
     this.connection.write('DLMON\r');
 
     let a, b, c, d, e;
-
     for (a = 1; a <= 16; a++) {
       for (b = 4; b <= 6; b++) {
         for (c = 1; c <= 4; c++) {
@@ -146,7 +134,6 @@ this.connection.on('close', () => {
                 + c.toString().padStart(2, '0') + ':'
                 + d.toString().padStart(2, '0') + ':'
                 + e.toString().padStart(2, '0') + ']';
-
               this.connection.write('RDL, ' + address + '\r');
             }
           }
@@ -201,12 +188,11 @@ this.connection.on('close', () => {
   updateDevice(address: string, brightness: number) {
     const accessoryHandler = this.deviceHandlers[address];
     accessoryHandler.updateState(brightness);
-
   }
 
   processLine(line: string) {
     if (line.includes('DL, ')) {
-      this.log.debug('Recived line:', line);
+      this.log.debug('Received line:', line);
       const sections = line.split(',');
       const address = sections[1].substring(2, sections[1].length - 1);
       const brightness = parseInt(sections[2]);
@@ -244,7 +230,7 @@ this.connection.on('close', () => {
 
       if ('fadeTime' in this.devices[device]) {
         if (this.devices[device]['fadeTime'] !== accessory.context.fadeTime) {
-          this.log.info('Changing device %s fade time from %s -> %s', 
+          this.log.info('Changing device %s fade time from %s -> %s',
             device, accessory.context.fadeTime, this.devices[device]['fadeTime']);
           accessory.context.fadeTime = this.devices[device]['fadeTime'];
         } else {
@@ -264,18 +250,14 @@ this.connection.on('close', () => {
   }
 
   startDiscovery(): void {
-  this.log.info('startDiscovery called - implement me!');
-  // TODO: Implement device discovery over the network here
-  // You can call discoverDevices() or add custom logic if needed
-  // For now, call the existing discoverDevices method to prevent crash
-  this.discoverDevices();
-}
+    this.log.info('startDiscovery called - implement me!');
+    // You can call discoverDevices or implement network logic here
+    this.discoverDevices();
+  }
 
-handleResponse(line: string): void {
-  this.log.info('handleResponse called with:', line);
-  // TODO: Implement how to handle responses from the Lutron processor here
-  // For now, you can re-use processLine
-  this.processLine(line);
-}
-  
+  handleResponse(line: string): void {
+    this.log.info('handleResponse called with:', line);
+    // For now, just process the line
+    this.processLine(line);
+  }
 }
