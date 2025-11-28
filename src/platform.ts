@@ -2,7 +2,7 @@ import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, 
 
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
 import { LutronHomeworksPlatformAccessory } from './platformAccessory';
-import { SerialPort } from 'serialport';
+import { ConnectionHandler, ConnectionConfig } from './connectionHandler';
 import { ReadlineParser } from '@serialport/parser-readline';
 
 export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
@@ -70,7 +70,49 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
       }
     }
 
-    this.port = new SerialPort({ path: this.config.serialPath as string, baudRate: this.config.baudRate as number ?? 115200 });
+    const connectionConfig: ConnectionConfig = {
+  connectionType: this.config.connectionType || 'serial',
+  serialPath: this.config.serialPath,
+  baudRate: this.config.baudRate || 115200,
+  host: this.config.host,
+  port: this.config.port || 23,
+  loginRequired: this.config.loginRequired,
+  username: this.config.username || 'lutron',
+  password: this.config.password || 'integration',
+};
+
+this.connection = new ConnectionHandler(connectionConfig, this.log);
+
+try {
+  await this.connection.connect();
+  this.log.info('Connected to Lutron Homeworks');
+  
+  // If login is not required, we're ready immediately
+  if (!this.config.loginRequired) {
+    this.log.info('No login required, ready to communicate');
+    this.startDiscovery();
+  }
+} catch (err) {
+  this.log.error('Failed to connect:', err);
+  throw err;
+}
+
+// Set up event handlers
+this.connection.on('data', (line: string) => {
+  // Handle incoming data
+  this.handleResponse(line);
+});
+
+this.connection.on('ready', () => {
+  // Login completed, start device discovery
+  this.log.info('Authentication complete, starting device discovery');
+  this.startDiscovery();
+});
+
+this.connection.on('close', () => {
+  this.log.warn('Connection closed, attempting to reconnect...');
+  // Add reconnection logic if desired
+});
     this.parser = new ReadlineParser();
     this.port.pipe(this.parser);
 
@@ -92,7 +134,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
     });
 
     if (this.config.loginRequired) {
-      this.port.write('LOGIN, ' + this.config.password + '\r');
+      this.connection.write('LOGIN, ' + this.config.password + '\r');
     }
 
     this.api.on('didFinishLaunching', () => {
@@ -108,8 +150,8 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
 
   discoverDevices() {
     this.log.info('Starting device discovery');
-    this.port.write('\r');
-    this.port.write('DLMON\r');
+    this.connection.write('\r');
+    this.connection.write('DLMON\r');
 
     let a, b, c, d, e;
 
@@ -125,7 +167,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
                 + d.toString().padStart(2, '0') + ':'
                 + e.toString().padStart(2, '0') + ']';
 
-              this.port.write('RDL, ' + address + '\r');
+              this.connection.write('RDL, ' + address + '\r');
             }
           }
         }
@@ -201,7 +243,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
   }
 
   setState(device: string, brightness: number, fadeTime: number) {
-    this.port.write('FADEDIM, ' + brightness + ', ' + fadeTime + ', 0, [' + device + ']\r');
+    this.connection.write('FADEDIM, ' + brightness + ', ' + fadeTime + ', 0, [' + device + ']\r');
   }
 
   setContext(accessory: PlatformAccessory, device: string) {
