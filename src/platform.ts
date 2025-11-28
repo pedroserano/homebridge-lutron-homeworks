@@ -112,25 +112,6 @@ this.connection.on('close', () => {
   this.log.warn('Connection closed, attempting to reconnect...');
   // Add reconnection logic if desired
 });
-    this.parser = new ReadlineParser();
-    this.port.pipe(this.parser);
-
-    this.parser = this.port.pipe(new ReadlineParser({ delimiter: '\r' }));
-
-    this.parser.on('data', data => {
-      const line = data.toString('utf8');
-
-      if (
-        !line.includes('232') &&
-        !line.includes('incorrect') &&
-        !line.includes('Invalid') &&
-        !line.includes('invalid') &&
-        !line.includes('not in database')
-      ) {
-        this.log.debug(line);
-        this.processLine(line);
-      }
-    });
 
     if (this.config.loginRequired) {
       this.connection.write('LOGIN, ' + this.config.password + '\r');
