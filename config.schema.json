@@ -1,5 +1,5 @@
 {
-   "pluginAlias": "LutronHomeworks",
+   "pluginAlias": "LutronHomeworksEthernet",
    "pluginType": "platform",
    "singular": true,
    "headerDisplay": "Homebridge plugin for the circa 2005 Lutron Homeworks System",
