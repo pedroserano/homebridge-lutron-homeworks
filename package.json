@@ -4,21 +4,26 @@
   "name": "homebridge-lutron-homeworks-ethernet",
   "version": "0.2.0",
   "description": "Homebridge plugin for the Lutron Homeworks system over RS232 or ethernet (TCP/Telnet)",
+  "license": "Apache-2.0",
+  "author": "Pedro Serano",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pedroserano/homebridge-lutron-homeworks.git"
-"bugs": {
+  },
+  "bugs": {
     "url": "https://github.com/pedroserano/homebridge-lutron-homeworks/issues"
   },
-    "homepage": "https://github.com/pedroserano/homebridge-lutron-homeworks#readme",
-  "author": "Pedro Serano",
-  "files": ["dist", "config.schema.json", "README.md", "LICENSE"],
+  "homepage": "https://github.com/pedroserano/homebridge-lutron-homeworks#readme",
+  "files": [
+    "dist",
+    "config.schema.json",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": "^18.20.4 || ^20.15.1 || ^22",
     "homebridge": "^1.6.0 || ^2.0.0-beta.0"
   },
-  "keywords": ["homebridge-plugin", "lutron", "homeworks", "lutron-homeworks", "ethernet", "telnet"]
-}
   "main": "dist/index.js",
   "scripts": {
     "lint": "eslint src/**.ts --max-warnings=0",
@@ -26,6 +31,14 @@
     "build": "rimraf ./dist && tsc",
     "prepublishOnly": "npm run lint && npm run build"
   },
+  "keywords": [
+    "homebridge-plugin",
+    "lutron",
+    "homeworks",
+    "lutron-homeworks",
+    "ethernet",
+    "telnet"
+  ],
   "dependencies": {
     "@serialport/parser-readline": "^10.5.0",
     "serialport": "^10.5.0"

@@ -128,7 +128,7 @@ export class ConnectionHandler extends EventEmitter {
         // --- ADDED CHECK HERE ---
         // Ignore the Lutron prompts from the logs
         if (trimmed === 'LNET>' || trimmed === 'Lutron HomeWorks >') {
-           return; 
+          return; 
         }
         // --- END ADDED CHECK ---
 
@@ -147,7 +147,7 @@ export class ConnectionHandler extends EventEmitter {
   }
   
   private writeRaw(data: string): void {
-     if (!this.connection) {
+    if (!this.connection) {
       this.log.error('Cannot write - not connected');
       return;
     }
