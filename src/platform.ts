@@ -69,7 +69,10 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
     }
 
     const connectionConfig: ConnectionConfig = {
-      connectionType: this.config.connectionType === 'tcp' ? 'tcp' : 'serial',
+      // Explicit setting wins. If it's missing, infer TCP when a host is given and no serial path is set.
+      connectionType: this.config.connectionType === 'tcp' ? 'tcp'
+        : this.config.connectionType === 'serial' ? 'serial'
+          : (this.config.host !== undefined && this.config.serialPath === undefined ? 'tcp' : 'serial'),
       serialPath: this.config.serialPath !== undefined ? String(this.config.serialPath) : undefined,
       baudRate: this.config.baudRate !== undefined ? Number(this.config.baudRate) : 115200,
       host: this.config.host !== undefined ? String(this.config.host) : undefined,
@@ -79,10 +82,22 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
       password: this.config.password !== undefined ? String(this.config.password) : 'integration',
     };
 
+    // Validate before connecting so a bad config gives a clear message instead of crashing the bridge.
+    if (connectionConfig.connectionType === 'tcp' && !connectionConfig.host) {
+      this.log.error('connectionType is "tcp" but no "host" is set in config.json. Set "host" to your Homeworks processor IP address.');
+    } else if (connectionConfig.connectionType === 'serial' && !connectionConfig.serialPath) {
+      this.log.error(
+        'No "serialPath" is set, so serial mode cannot start. '
+        + 'For ethernet, set "connectionType": "tcp" and "host": "<processor IP>". '
+        + 'For RS-232, set "serialPath" (e.g. /dev/ttyUSB0).',
+      );
+    }
+
     this.connection = new ConnectionHandler(connectionConfig, this.log);
 
     // Only connect; don't send any write/discovery commands here!
-    this.connection.connect().then(() => {
+    const configValid = connectionConfig.connectionType === 'tcp' ? !!connectionConfig.host : !!connectionConfig.serialPath;
+    (configValid ? this.connection.connect() : Promise.reject(new Error('Invalid connection settings; see error above.'))).then(() => {
       this.log.info('Connected to Lutron Homeworks');
       
       // Add a small timeout (e.g., 100ms) before sending the first command
@@ -92,8 +107,8 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
       }, 100); // 100 milliseconds is usually sufficient
 
     }).catch((err) => {
-      this.log.error('Failed to connect:', err);
-      throw err;
+      // Log and stay alive; throwing here would crash the whole child bridge.
+      this.log.error('Failed to connect:', err instanceof Error ? err.message : err);
     });
 
     // Handle incoming data lines from processor
@@ -141,6 +156,10 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
         }
       }
     }
+    // The scan above only covers some 5-part addresses, so also ask for every device named in the config.
+    for (const configured of Object.keys(this.devices)) {
+      this.connection.write('RDL, [' + configured + ']\r');
+    }
     this.log.info('Finished device discovery');
   }
 
@@ -159,6 +178,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
         this.log.debug('Restoring existing accessory from cache: %s', existingAccessory.context.name);
 
         this.setContext(existingAccessory, device);
+        existingAccessory.displayName = existingAccessory.context.name;
 
         const accessoryHandler = new LutronHomeworksPlatformAccessory(this, existingAccessory);
         accessoryHandler.updateState(brightness);
@@ -173,7 +193,8 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
         this.log.info('Adding new accessory:', device);
 
         // create a new accessory
-        const accessory = new this.api.platformAccessory(device, uuid);
+        const configuredName = this.devices[device] && 'name' in this.devices[device] ? String(this.devices[device]['name']) : device;
+        const accessory = new this.api.platformAccessory(configuredName, uuid);
         this.setContext(accessory, device);
 
         const accessoryHandler = new LutronHomeworksPlatformAccessory(this, accessory);

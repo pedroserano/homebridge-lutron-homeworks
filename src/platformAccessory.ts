@@ -23,6 +23,7 @@ export class LutronHomeworksPlatformAccessory {
     this.fadeTime = accessory.context.fadeTime;
 
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
+      .setCharacteristic(this.platform.Characteristic.Name, accessory.context.name)
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Lutron')
       .setCharacteristic(this.platform.Characteristic.Model, 'Homeworks Illumination')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, accessory.context.address);
