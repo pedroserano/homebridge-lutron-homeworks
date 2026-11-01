@@ -15,6 +15,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
   private devices = {};
   private ignoreDevices: string[] = [];
   private defaultFadeTime = 1;
+  private fullDiscovery = false;
 
   constructor(
     public readonly log: Logger,
@@ -65,6 +66,14 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
         this.defaultFadeTime = this.config.defaultFadeTime;
       } else {
         log.warn('Error processing defaultFadeTime from config. Make sure defaultFadeTime is of type number.');
+      }
+    }
+
+    if ('fullDiscovery' in this.config) {
+      if (typeof this.config.fullDiscovery === 'boolean') {
+        this.fullDiscovery = this.config.fullDiscovery;
+      } else {
+        log.warn('Error processing fullDiscovery from config. Make sure fullDiscovery is of type boolean.');
       }
     }
 
@@ -165,6 +174,23 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
     this.log.info('Starting device discovery');
     this.connection.write('\r');
     this.connection.write('DLMON\r');
+
+    const known = new Set<string>(Object.keys(this.devices));
+    for (const accessory of this.accessories) {
+      if (typeof accessory.context.address === 'string') {
+        known.add(accessory.context.address);
+      }
+    }
+
+    // The full scan sends thousands of commands and keeps the processor busy long after startup,
+    // so once devices are known only ask about those.
+    if (known.size > 0 && !this.fullDiscovery) {
+      this.log.info('Refreshing %d known devices (set fullDiscovery to scan for new ones)', known.size);
+      for (const address of known) {
+        this.connection.write('RDL, [' + address + ']\r');
+      }
+      return;
+    }
 
     let a, b, c, d, e;
     for (a = 1; a <= 16; a++) {

@@ -105,6 +105,12 @@
             "minimum": 0,
             "description": "This sets the default fade time in seconds for all devices"
          },
+         "fullDiscovery": {
+            "title": "Scan for new devices on startup",
+            "type": "boolean",
+            "default": false,
+            "description": "Scan every Homeworks address on startup to find new dimmers. Turn this on once to find newly added devices, then turn it off: the scan keeps the processor busy for a minute or more, and lights won't respond until it finishes."
+         },
          "devices": {
             "title": "Devices",
             "items": {

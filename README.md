@@ -66,6 +66,7 @@ Optional fields:
 * `"defaultFadeTime"`: `some number` // optional fade time in seconds to use for all discovered devices (defaults to 1 if omitted)
 * `"devices"`: `[{ "address": "01:04:01:01:01", "name": "Formal Living", "fadeTime": 3 },...]` // optional list of devices with their name and specific fade times. This fade time overwrites defaultFadeTime.
 * `"ignoreDevices"`: `["01:04:01:01:02",...]` //optional list of devices to ignore and not add into HomeKit
+* `"fullDiscovery"`: `true` or `false` // optional; scan every possible address on startup to find new dimmers (defaults to false). Turn it on once after adding dimmers, then off again: the scan keeps the processor busy for a minute or more and lights won't respond until it finishes.
 
 Sample configuration with optional values (edit `~/.homebridge/config.json`):
 ```
@@ -119,9 +120,9 @@ Addresses are literally the address for a dimmer or switch. Don't worry if you d
 
 1. Plugin sends the `LOGIN, <password>` if `loginRequired` is `true`
 2. Plugin sends the `DLMON` command to Lutron Homeworks so that we can observe when a dimmer's state has been changed
-3. Plugin sends the `RDL, [<address>]` command for every single possible address value. This command will return back a dimmer's current brightness level if a dimmer exists at `address`. This accomplishes two things:
-   1. Discovers all the dimmers in the system
-   2. Determines their current state
+3. Plugin sends the `RDL, [<address>]` command, which returns a dimmer's current brightness level if a dimmer exists at `address`:
+   1. On first install (no devices configured or cached yet), or when `fullDiscovery` is `true`, it sends this for every possible address to discover all the dimmers in the system
+   2. Otherwise it only asks about devices it already knows, so their state is up to date within a second or two of startup
    
 # What kind of wizardry is this?
 
