@@ -13,7 +13,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
   private connection: ConnectionHandler;
   private deviceHandlers = {};
   private devices = {};
-  private ignoreDevices;
+  private ignoreDevices: string[] = [];
   private defaultFadeTime = 1;
 
   constructor(
@@ -125,7 +125,35 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
     this.api.on('didFinishLaunching', () => {
       log.debug('Executed didFinishLaunching callback');
       // NO device discovery or writes here!
+      this.restoreCachedAccessories();
     });
+  }
+
+  // Attach handlers to every cached accessory so it stays usable in HomeKit even if discovery never hears from it.
+  restoreCachedAccessories() {
+    for (const accessory of [...this.accessories]) {
+      const device = accessory.context.address;
+      if (typeof device !== 'string') {
+        this.log.warn('Cached accessory %s has no address. Skipping.', accessory.displayName);
+        continue;
+      }
+      if (device in this.deviceHandlers) {
+        this.log.debug('Cached accessory %s already handled by discovery.', device);
+        continue;
+      }
+
+      if (this.ignoreDevices.includes(device)) {
+        this.log.info('Found cached device %s but is marked as an ignored device. Removing from system.', accessory.context.name);
+        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        this.accessories.splice(this.accessories.indexOf(accessory), 1);
+        continue;
+      }
+
+      this.log.debug('Restoring cached accessory %s before discovery.', device);
+      this.setContext(accessory, device);
+      accessory.displayName = accessory.context.name;
+      this.deviceHandlers[device] = new LutronHomeworksPlatformAccessory(this, accessory);
+    }
   }
 
   configureAccessory(accessory: PlatformAccessory) {

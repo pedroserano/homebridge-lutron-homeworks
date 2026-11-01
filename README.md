@@ -34,7 +34,7 @@ ETHERNET Minimum configuration sample (edit `~/.homebridge/config.json`):
       "username": "lutron",
       "password": "jetski",
       "defaultFadeTime": 1,
-      "platform": "LutronHomeworks"
+      "platform": "LutronHomeworksEthernet"
     }
   ]
 ```
@@ -50,7 +50,7 @@ SERIAL Minimum configuration sample (edit `~/.homebridge/config.json`):
       "baudRate": 115200,
       "loginRequired": true,
       "password": "jetski",
-      "platform": "LutronHomeworks"
+      "platform": "LutronHomeworksEthernet"
     }
   ],
 ```
@@ -64,7 +64,7 @@ Optional fields:
 
 * `"baudRate"`: `some number` // optionally sets the baud rate of the serial port (defaults to 115200)
 * `"defaultFadeTime"`: `some number` // optional fade time in seconds to use for all discovered devices (defaults to 1 if omitted)
-* `"device"`: `[{ "address": "01:04:01:01:01", "name": "Formal Living", "fadeTime": 3 },...]` // optional list of devices with their name and specific fade times. This fade time overwrites defaultFadeTime.
+* `"devices"`: `[{ "address": "01:04:01:01:01", "name": "Formal Living", "fadeTime": 3 },...]` // optional list of devices with their name and specific fade times. This fade time overwrites defaultFadeTime.
 * `"ignoreDevices"`: `["01:04:01:01:02",...]` //optional list of devices to ignore and not add into HomeKit
 
 Sample configuration with optional values (edit `~/.homebridge/config.json`):
@@ -94,11 +94,22 @@ Sample configuration with optional values (edit `~/.homebridge/config.json`):
             "ignoreDevices": [
                  "01:04:01:01:05",
                  "01:04:01:01:06"
-            ]
-            "platform": "LutronHomeworks"
+            ],
+            "platform": "LutronHomeworksEthernet"
         }
     ],
 ```
+
+# Keeping accessories in HomeKit
+
+Homebridge deletes cached accessories (and with them their HomeKit rooms, scenes and automations) when no loaded plugin claims them. To avoid that:
+
+* The `"platform"` value must be exactly `LutronHomeworksEthernet`. Any other value means the plugin never loads and its accessories are orphaned.
+* Don't change device address formats or the bridge `username`. Accessories are identified by their address, and HomeKit treats a new bridge `username` as a brand new bridge.
+* Start Homebridge with `-K` (keep orphans) so accessories survive if the plugin temporarily fails to load. In homebridge-config-ui-x this is the "keep orphans" option in the Homebridge settings.
+* Upgrading from the original `homebridge-lutron-homeworks` package: the plugin and platform names changed, so accessories are re-created once and need to be assigned to rooms again.
+
+Devices that don't respond during discovery are not removed. Cached accessories are restored at startup and update as soon as the processor reports their state. Only devices listed in `ignoreDevices` are removed.
 
 # What the heck are "Addresses"?
 
