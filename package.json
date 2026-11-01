@@ -2,7 +2,7 @@
   "private": false,
   "displayName": "Lutron Homeworks Ethernet",
   "name": "homebridge-lutron-homeworks-ethernet",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Homebridge plugin for the Lutron Homeworks system over RS232 or ethernet (TCP/Telnet)",
   "license": "Apache-2.0",
   "author": "Pedro Serano",
