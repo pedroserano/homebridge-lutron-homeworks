@@ -2,11 +2,8 @@ import { Service, PlatformAccessory, CharacteristicValue, CharacteristicSetCallb
 
 import { LutronHomeworksPlatform } from './platform';
 
-const SEND_DELAY_MS = 20;
-
 export class LutronHomeworksPlatformAccessory {
   private service: Service;
-  private sendTimer: NodeJS.Timeout | null = null;
   private address: string;
   private fadeTime: number;
   private name: string;
@@ -51,24 +48,10 @@ export class LutronHomeworksPlatformAccessory {
 
     this.platform.log.debug('Set Characteristic On ->', value);
 
-    if (this.states.On && this.states.Brightness === 0) {
-      this.states.Brightness = 100;
-    }
-    this.scheduleSend();
+    this.platform.setState(this.address, this.states.On ? this.states.Brightness : 0, this.fadeTime );
     this.service.updateCharacteristic(this.platform.Characteristic.On, value);
 
     callback(null);
-  }
-
-  // HomeKit often sets On and Brightness together; wait a moment so they go out as one FADEDIM.
-  private scheduleSend() {
-    if (this.sendTimer) {
-      return;
-    }
-    this.sendTimer = setTimeout(() => {
-      this.sendTimer = null;
-      this.platform.setState(this.address, this.states.On ? this.states.Brightness : 0, this.fadeTime);
-    }, SEND_DELAY_MS);
   }
 
   getOn(callback: CharacteristicGetCallback) {
@@ -84,8 +67,7 @@ export class LutronHomeworksPlatformAccessory {
     this.states.Brightness = value as number;
 
     this.platform.log.debug('Set Characteristic Brightness ->', value);
-    this.states.On = this.states.Brightness > 0;
-    this.scheduleSend();
+    this.platform.setState(this.address, this.states.Brightness, this.fadeTime);
 
     this.service.updateCharacteristic(this.platform.Characteristic.Brightness, value);
     callback(null);

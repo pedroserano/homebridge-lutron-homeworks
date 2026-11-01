@@ -152,11 +152,5 @@ This isn't wizardry. Just taking advantage of Lutron HomeWorks protocol. You can
 - **Timeout**: Verify your Lutron device is accessible on the network
 - **Authentication failed**: Double-check your password
 - **No response from device**: Some Lutron systems may need a slight delay after connecting before sending commands
-- **Connection dropped**: The plugin reconnects automatically, retrying after 1, 2, 5, 10 and then every 30 seconds, and refreshes known devices once it's back
-
-# Making lights respond faster
-
-* Lights fade over `defaultFadeTime` seconds (1 by default). Set `"defaultFadeTime": 0`, or `"fadeTime": 0` on individual devices, to make them switch instantly.
-* Listing your devices under `devices` lets the plugin ask about them first at startup, before it scans the rest of the address space. The scan runs in the background and never delays commands from HomeKit.
 
 -----

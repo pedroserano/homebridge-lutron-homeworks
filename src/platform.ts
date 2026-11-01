@@ -15,7 +15,6 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
   private devices = {};
   private ignoreDevices: string[] = [];
   private defaultFadeTime = 1;
-  private discoveryStarted = false;
 
   constructor(
     public readonly log: Logger,
@@ -99,11 +98,16 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
     // Only connect; don't send any write/discovery commands here!
     const configValid = connectionConfig.connectionType === 'tcp' ? !!connectionConfig.host : !!connectionConfig.serialPath;
     (configValid ? this.connection.connect() : Promise.reject(new Error('Invalid connection settings; see error above.'))).then(() => {
-      // connect() resolves once login has finished, so discovery replies aren't dropped.
       this.log.info('Connected to Lutron Homeworks');
-      this.startDiscovery();
+      
+      // Add a small timeout (e.g., 100ms) before sending the first command
+      setTimeout(() => {
+        this.log.info('Delay complete, starting device discovery immediately.');
+        this.startDiscovery();
+      }, 100); // 100 milliseconds is usually sufficient
+
     }).catch((err) => {
-      // Log and stay alive; throwing here would crash the whole child bridge. The handler keeps retrying.
+      // Log and stay alive; throwing here would crash the whole child bridge.
       this.log.error('Failed to connect:', err instanceof Error ? err.message : err);
     });
 
@@ -114,19 +118,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
 
     this.connection.on('close', () => {
       this.log.warn('Connection closed, attempting to reconnect...');
-    });
-
-    this.connection.on('reconnected', () => {
-      if (this.discoveryStarted) {
-        this.refreshDevices();
-      } else {
-        this.startDiscovery();
-      }
-    });
-
-    // Without a listener, an emitted 'error' (e.g. a wrong password) would crash the bridge.
-    this.connection.on('error', (err: Error) => {
-      this.log.error('Connection error:', err.message);
+      // Optionally: attempt reconnect logic here
     });
 
     // Remove any .write() or .discoverDevices() calls from didFinishLaunching
@@ -171,22 +163,9 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
 
   discoverDevices() {
     this.log.info('Starting device discovery');
-    this.discoveryStarted = true;
-    this.connection.write('');
-    this.connection.write('DLMON');
+    this.connection.write('\r');
+    this.connection.write('DLMON\r');
 
-    // Ask about configured and cached devices first so known lights get their state right away.
-    const known = new Set<string>(Object.keys(this.devices));
-    for (const accessory of this.accessories) {
-      if (typeof accessory.context.address === 'string') {
-        known.add(accessory.context.address);
-      }
-    }
-    for (const address of known) {
-      this.connection.enqueue('RDL, [' + address + ']');
-    }
-
-    // Then scan the rest of the address space. Queued commands go out one at a time, so HomeKit commands stay fast.
     let a, b, c, d, e;
     for (a = 1; a <= 16; a++) {
       for (b = 4; b <= 6; b++) {
@@ -199,22 +178,17 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
                 + c.toString().padStart(2, '0') + ':'
                 + d.toString().padStart(2, '0') + ':'
                 + e.toString().padStart(2, '0') + ']';
-              this.connection.enqueue('RDL, ' + address);
+              this.connection.write('RDL, ' + address + '\r');
             }
           }
         }
       }
     }
-    this.log.info('Queued device discovery');
-  }
-
-  // After a reconnect, re-enable monitoring and refresh only the devices we already know about.
-  refreshDevices() {
-    this.log.info('Refreshing %d known devices', Object.keys(this.deviceHandlers).length);
-    this.connection.write('DLMON');
-    for (const address of Object.keys(this.deviceHandlers)) {
-      this.connection.enqueue('RDL, [' + address + ']');
+    // The scan above only covers some 5-part addresses, so also ask for every device named in the config.
+    for (const configured of Object.keys(this.devices)) {
+      this.connection.write('RDL, [' + configured + ']\r');
     }
+    this.log.info('Finished device discovery');
   }
 
   addDevice(device: string, brightness: number) {
@@ -285,7 +259,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
   }
 
   setState(device: string, brightness: number, fadeTime: number) {
-    this.connection.write('FADEDIM, ' + brightness + ', ' + fadeTime + ', 0, [' + device + ']');
+    this.connection.write('FADEDIM, ' + brightness + ', ' + fadeTime + ', 0, [' + device + ']\r');
   }
 
   setContext(accessory: PlatformAccessory, device: string) {
@@ -332,7 +306,7 @@ export class LutronHomeworksPlatform implements DynamicPlatformPlugin {
   }
 
   handleResponse(line: string): void {
-    this.log.debug('handleResponse called with:', line);
+    this.log.info('handleResponse called with:', line);
     // For now, just process the line
     this.processLine(line);
   }

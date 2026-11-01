@@ -14,28 +14,13 @@ export interface ConnectionConfig {
   password?: string;
 }
 
-// Delay between low-priority (discovery) commands so HomeKit commands never wait behind a long scan.
-const QUEUE_INTERVAL_MS = 5;
-// Some processors never print "login successful"; stop waiting for it after this long.
-const LOGIN_TIMEOUT_MS = 2000;
-const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10000, 30000];
-
 export class ConnectionHandler extends EventEmitter {
   private connection: SerialPort | Socket | null = null;
   private readonly log: Logger;
   private readonly config: ConnectionConfig;
   private buffer = '';
   private loginPending = false;
-  private loginSent = false;
-  private loginFailed = false;
-
-  private queue: string[] = [];
-  private queueTimer: NodeJS.Timeout | null = null;
-
-  private connecting = false;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private reconnectAttempt = 0;
-  private closed = false;
+  private loginSent = false; 
 
   constructor(config: ConnectionConfig, log: Logger) {
     super();
@@ -44,28 +29,17 @@ export class ConnectionHandler extends EventEmitter {
   }
 
   async connect(): Promise<void> {
-    this.connecting = true;
-    try {
-      if (this.config.connectionType === 'serial') {
-        await this.connectSerial();
-      } else {
-        await this.connectTCP();
-      }
-      await this.waitForLogin();
-      this.reconnectAttempt = 0;
-    } catch (err) {
-      this.resetConnection();
-      this.scheduleReconnect();
-      throw err;
-    } finally {
-      this.connecting = false;
+    if (this.config.connectionType === 'serial') {
+      return this.connectSerial();
+    } else {
+      return this.connectTCP();
     }
   }
 
   private async connectSerial(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.log.info(`Connecting to serial port: ${this.config.serialPath}`);
-
+      
       const port = new SerialPort({
         path: this.config.serialPath!,
         baudRate: this.config.baudRate || 115200,
@@ -91,7 +65,7 @@ export class ConnectionHandler extends EventEmitter {
 
       port.on('close', () => {
         this.log.warn('Serial port closed');
-        this.handleDisconnect(port);
+        this.emit('close');
       });
     });
   }
@@ -99,14 +73,11 @@ export class ConnectionHandler extends EventEmitter {
   private async connectTCP(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.log.info(`Connecting to ${this.config.host}:${this.config.port}`);
-
+      
       const socket = new Socket();
-
+      
       socket.connect(this.config.port!, this.config.host!, () => {
         this.log.info('TCP connection established');
-        // Send each command as soon as it is written instead of batching small packets.
-        socket.setNoDelay(true);
-        socket.setKeepAlive(true, 30000);
         this.connection = socket;
         if (this.config.loginRequired && !this.loginSent) {
           this.sendImmediateLogin();
@@ -125,86 +96,20 @@ export class ConnectionHandler extends EventEmitter {
 
       socket.on('close', () => {
         this.log.warn('TCP connection closed');
-        this.handleDisconnect(socket);
+        this.emit('close');
+      });
+
+      socket.on('end', () => {
+        this.log.warn('TCP connection ended');
+        this.emit('close');
       });
     });
-  }
-
-  private waitForLogin(): Promise<void> {
-    if (!this.loginPending) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.removeListener('ready', onReady);
-        if (!this.connection) {
-          reject(new Error('Connection lost during login'));
-        } else if (this.loginFailed) {
-          reject(new Error('Login incorrect'));
-        } else {
-          this.log.debug('No login confirmation received; continuing anyway.');
-          this.loginPending = false;
-          resolve();
-        }
-      }, LOGIN_TIMEOUT_MS);
-      const onReady = () => {
-        clearTimeout(timer);
-        resolve();
-      };
-      this.once('ready', onReady);
-    });
-  }
-
-  private handleDisconnect(source: SerialPort | Socket): void {
-    // Ignore stale events from a connection we've already replaced.
-    if (this.connection !== null && this.connection !== source) {
-      return;
-    }
-    const wasConnected = this.connection !== null;
-    this.resetConnection();
-    if (wasConnected) {
-      this.emit('close');
-    }
-    if (!this.connecting && !this.closed) {
-      this.scheduleReconnect();
-    }
-  }
-
-  private resetConnection(): void {
-    this.connection = null;
-    this.buffer = '';
-    this.loginSent = false;
-    this.loginPending = false;
-    this.loginFailed = false;
-    this.queue = [];
-    if (this.queueTimer) {
-      clearInterval(this.queueTimer);
-      this.queueTimer = null;
-    }
-  }
-
-  private scheduleReconnect(): void {
-    if (this.reconnectTimer || this.closed) {
-      return;
-    }
-    const delay = RECONNECT_DELAYS_MS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)];
-    this.reconnectAttempt++;
-    this.log.info(`Reconnecting in ${delay / 1000}s...`);
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      this.connect().then(() => {
-        this.log.info('Reconnected to Lutron Homeworks');
-        this.emit('reconnected');
-      }).catch((err) => {
-        this.log.error('Reconnect failed:', err instanceof Error ? err.message : err);
-      });
-    }, delay);
   }
 
   private sendImmediateLogin(): void {
     const username = this.config.username || 'lutron';
     const password = this.config.password || 'integration';
-    const loginString = `${username}, ${password}\r`;
+    const loginString = `${username}, ${password}\r`; 
     this.writeRaw(loginString);
     this.loginSent = true;
     this.loginPending = true;
@@ -213,17 +118,17 @@ export class ConnectionHandler extends EventEmitter {
 
   private handleData(data: string): void {
     this.buffer += data;
-
+    
     const lines = this.buffer.split('\n');
     this.buffer = lines.pop() || '';
-
+    
     lines.forEach(line => {
       const trimmed = line.trim();
       if (trimmed) {
         // --- ADDED CHECK HERE ---
         // Ignore the Lutron prompts from the logs
         if (trimmed === 'LNET>' || trimmed === 'Lutron HomeWorks >') {
-          return;
+          return; 
         }
         // --- END ADDED CHECK ---
 
@@ -233,7 +138,6 @@ export class ConnectionHandler extends EventEmitter {
           this.emit('ready');
         } else if (trimmed.toLowerCase().includes('login incorrect')) {
           this.log.error('Login failed - check username and password');
-          this.loginFailed = true;
           this.emit('error', new Error('Login incorrect'));
         } else if (!this.loginPending) {
           this.emit('data', trimmed);
@@ -241,7 +145,7 @@ export class ConnectionHandler extends EventEmitter {
       }
     });
   }
-
+  
   private writeRaw(data: string): void {
     if (!this.connection) {
       this.log.error('Cannot write - not connected');
@@ -256,42 +160,28 @@ export class ConnectionHandler extends EventEmitter {
 
 
   write(data: string): void {
-    this.writeRaw(data + '\r\n');
-  }
-
-  // Queue a low-priority command (e.g. discovery). Sent one at a time so write() commands go out first.
-  enqueue(data: string): void {
     if (!this.connection) {
+      this.log.error('Cannot write - not connected');
       return;
     }
-    this.queue.push(data);
-    if (!this.queueTimer) {
-      this.queueTimer = setInterval(() => {
-        const next = this.queue.shift();
-        if (next === undefined) {
-          clearInterval(this.queueTimer!);
-          this.queueTimer = null;
-          return;
-        }
-        this.write(next);
-      }, QUEUE_INTERVAL_MS);
+
+    const ending = '\r\n';
+    
+    if (this.config.connectionType === 'serial') {
+      (this.connection as SerialPort).write(data + ending);
+    } else {
+      (this.connection as Socket).write(data + ending);
     }
   }
 
   close(): void {
-    this.closed = true;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
     if (this.connection) {
-      const connection = this.connection;
-      this.resetConnection();
       if (this.config.connectionType === 'serial') {
-        (connection as SerialPort).close();
+        (this.connection as SerialPort).close();
       } else {
-        (connection as Socket).end();
+        (this.connection as Socket).end();
       }
+      this.connection = null;
     }
   }
 
@@ -299,7 +189,7 @@ export class ConnectionHandler extends EventEmitter {
     if (!this.connection) {
       return false;
     }
-
+    
     if (this.config.connectionType === 'serial') {
       return (this.connection as SerialPort).isOpen;
     } else {
